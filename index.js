@@ -19,8 +19,8 @@ const userSchema = joi.object({
 const messageSchema = joi.object({
     to: joi.string().required(),
     text: joi.string().required(),
-    type: joi.valid("message", "private_message").required(),
-    from: joi.string().required()
+    type: joi.alternatives().valid('message', 'private_message').required(),
+    from: joi.string()
 });
 
 
@@ -33,10 +33,7 @@ mongoClient.connect(() => {
 
 //Save participants
 app.post('/participants', async (req, res) => {
-    //const name = req.query.name;
     const { name } = req.body;
-    //console.log(req);
-    //console.log("name: ", req.query.name);
     
     const validation = userSchema.validate(req.body);
     if (validation.error) {
@@ -83,30 +80,28 @@ app.get('/participants', async (req, res) => {
 
 //Save messages
 app.post('/messages', async (req, res) => {
-    //console.log(req);
-    //const name = req.query.name;
     const { user } = req.headers;
     const { to, text, type } = req.body;
 
     //validation of information in the body
     const validation = messageSchema.validate(req.body);
     if(validation.error) {
-        res.sendStatus(422);
+        res.status(422).send(validation.error.details.map((err) => err.message));
         return;
     }
 
     try {
-        const checkUserRegistered = await db.collection('participants').findOne({ user });
+        const checkUserRegistered = await db.collection('participants').findOne({ name : user });
         if (!checkUserRegistered) {
-            res.status(409).send("user not registered");
+            res.status(422).send("user not registered");
             return;
         }
 
         await db.collection("messages").insertOne({
             from: user,
-            to,
-            text,
-            type,
+            to: to,
+            text: text,
+            type: type,
             time: dayjs().locale("pt-br").format("HH:mm:ss")
         });
         res.sendStatus(201);
@@ -122,17 +117,15 @@ app.get("/messages", async (req, res) => {
     const { limit } = req.query;
     
     try {
-        const messages = await db.collection("messages").find({}).sort({ _id: -1 }).limit(parseInt(limit)).toArray(); 
-        /*if (limit) {
-            const messages = await db.collection("messages").find({}).sort({ _id: -1 }).limit(parseInt(limit)).toArray();   
-            //console.log("limite ", typeof limit);
-        } else {
-            const messages = await db.collection("messages").find({}).sort({ _id: -1 }).toArray();
-        }*/
-        //console.log(typeof messages);
-        //console.log(messages);
-        const filteredMessages = messages.filter(message => message.to === user || message.from === user);
-        res.status(200).send(filteredMessages);
+        const messages = await db.collection("messages").find({
+            $or: [{ to: 'Todos' }, { from: user }, { to: user }, { type: 'message' }]
+        }).sort({ _id: -1 }).toArray(); 
+        
+        if (limit) {
+            res.send(messages.slice(0, parseInt(limit)).reverse());
+            return;
+        }
+        res.status(200).send(messages.reverse());
     } catch (error) {
         console.log(error);
         res.sendStatus(500);
