@@ -161,6 +161,31 @@ app.delete('/participants', async (req, res) => {
     }
 })
 
+//Remove inactive users
+setInterval(async () => {
+    try {
+        const participants = await db.collection('participants').find({ lastStatus: { $lte: Date.now() - 10000 } }).toArray();
+        //stop function if there is no inactive user
+        if (participants.length === 0) {return}
+
+        //remove inactive users
+        await db.collection('participants').deleteMany({ lastStatus: { $lte: Date.now() - 10000 } });
+        participants.forEach( async (participant) => {
+            await db.collection("messages").insertOne({
+                from: participant.name,
+                to: 'Todos',
+                text: 'sai da sala...',
+                type: 'status',
+                time: dayjs().locale("pt-br").format("HH:mm:ss")
+            })    
+        });
+        
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(500);
+    }
+}, 15000);
+
 app.listen(5000,() => {
     console.log('Running in http://localhost:5000')
 });
