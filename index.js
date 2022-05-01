@@ -40,7 +40,7 @@ app.post('/participants', async (req, res) => {
     
     const validation = userSchema.validate(req.body);
     if (validation.error) {
-        res.sendStatus(402);
+        res.sendStatus(422);
         return;
     }
     
@@ -88,6 +88,13 @@ app.post('/messages', async (req, res) => {
     const { user } = req.headers;
     const { to, text, type } = req.body;
 
+    //validation of information in the body
+    const validation = messageSchema.validate(req.body);
+    if(validation.error) {
+        res.sendStatus(422);
+        return;
+    }
+
     try {
         const checkUserRegistered = await db.collection('participants').findOne({ user });
         if (!checkUserRegistered) {
@@ -111,7 +118,44 @@ app.post('/messages', async (req, res) => {
 
 //Get all messages
 app.get("/messages", async (req, res) => {
+    const { user } = req.headers;
+    const { limit } = req.query;
     
+    try {
+        const messages = await db.collection("messages").find({}).sort({ _id: -1 }).limit(parseInt(limit)).toArray(); 
+        /*if (limit) {
+            const messages = await db.collection("messages").find({}).sort({ _id: -1 }).limit(parseInt(limit)).toArray();   
+            //console.log("limite ", typeof limit);
+        } else {
+            const messages = await db.collection("messages").find({}).sort({ _id: -1 }).toArray();
+        }*/
+        //console.log(typeof messages);
+        //console.log(messages);
+        const filteredMessages = messages.filter(message => message.to === user || message.from === user);
+        res.status(200).send(filteredMessages);
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(500);
+    }
+});
+
+//Participant status
+app.post("/status", async (req, res) => {
+    const { user } = req.headers;
+
+    try {
+        const checkUserRegistered = await db.collection('participants').findOne({ name : user });
+        if (!checkUserRegistered) {
+            res.status(404).send("user not registered");
+            return;
+        }
+
+        await db.collection("participants").updateOne({ name : user }, { $set: { lastStatus: Date.now() } });
+        res.sendStatus(200);
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(500);
+    }
 });
 
 app.delete('/participants', async (req, res) => {
