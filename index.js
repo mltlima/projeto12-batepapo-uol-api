@@ -209,6 +209,39 @@ app.delete('/messages/:id', async (req, res) => {
     }
 })
 
+//change message
+app.put('/messages/:id', async (req, res) => {
+    const { id } = req.params;
+    const from = req.headers.user;
+    const message = { from, ...req.body };
+    //console.log(message)
+    try {
+        const validation = messageSchema.validate(message);
+        if(validation.error) {
+            res.sendStatus(422);
+            return;
+        }
+
+        const updateMessage = await db.collection('messages').findOne({ _id: new ObjectId(id) });
+        //console.log(updateMessage)
+        if (!updateMessage) {
+            res.status(404).send("message not found");
+            return;
+        }
+        if (from !== updateMessage.from) {
+            res.sendStatus(401);
+            return;
+        }
+
+        await db.collection("messages").updateOne({ _id: updateMessage._id }, { $set: message });
+        res.sendStatus(201);
+
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(500);
+    }
+})
+
 app.listen(5000,() => {
     console.log('Running in http://localhost:5000')
 });
