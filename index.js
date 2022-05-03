@@ -186,6 +186,29 @@ setInterval(async () => {
     }
 }, 15000);
 
+//Delete message
+app.delete('/messages/:id', async (req, res) => {
+    const { id } = req.params;
+    const { user } = req.headers;
+
+    try {
+        const message = await db.collection('messages').findOne({  _id: new ObjectId(id) });
+        if (!message) {
+            res.status(404).send("message not found");
+            return;
+        }
+        if (message.from != user) {
+            res.status(401).send("you don't have permission to delete this message");
+        }
+
+        await db.collection("messages").deleteOne({ _id: new ObjectId(id) });
+        res.sendStatus(200);
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(500);
+    }
+})
+
 app.listen(5000,() => {
     console.log('Running in http://localhost:5000')
 });
